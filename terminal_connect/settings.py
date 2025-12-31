@@ -86,7 +86,28 @@ CORS_ALLOWED_ORIGINS = [
 
 from corsheaders.defaults import default_headers
 
+import os
 
+# Static files
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
+SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-key')
+DEBUG = os.environ.get('DEBUG', 'True') == 'True'
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost').split(',')
+
+# Database - use DATABASE_URL from Dokku if available
+import dj_database_url
+DATABASES = {
+    'default': dj_database_url.config(
+        default='sqlite:///db.sqlite3',
+        conn_max_age=600
+    )
+}
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
