@@ -1,0 +1,8 @@
+Django>=4.2
+requests
+django-cors-headers
+python-dotenv
+pytest
+pytest-django
+responses
+flask
