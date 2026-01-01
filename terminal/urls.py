@@ -11,6 +11,6 @@ urlpatterns = [
     path('mock/start-timeout', mock_start_timeout),
     path('mock/status', mock_get_transaction_status),
 
-    path('webhooks/', shopify_webhook, name='shopify_webhook'),
+    path('webhooks', shopify_webhSook, name='shopify_webhook'),
 
 ]
