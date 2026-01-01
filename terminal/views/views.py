@@ -5,8 +5,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 import requests
 
-from .models import Transaction
-from .services import PinVandaagService, find_terminal
+from terminal.models import Transaction
+from terminal.services import PinVandaagService, find_terminal
 
 
 logger = logging.getLogger(__name__)
