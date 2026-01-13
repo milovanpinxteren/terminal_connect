@@ -13,7 +13,7 @@ class TerminalLinksAdmin(admin.ModelAdmin):
             'fields': ('shop_domain', 'shop_id', 'location_id', 'staff_member_id', 'user_id')
         }),
         ('Terminal Information', {
-            'fields': ('terminal_id', 'api_key')
+            'fields': ('terminal_id', 'api_key', 'is_demo')
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at')
