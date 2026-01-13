@@ -6,7 +6,7 @@ from django.views.decorators.clickjacking import xframe_options_exempt
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods, require_GET
 import requests
-
+from django.utils import timezone
 from terminal.models import Transaction
 from terminal.services import PinVandaagService, find_terminal
 
@@ -150,24 +150,31 @@ def start_transaction(request):
                 'error': 'No matching terminal found'
             }, status=404)
 
-        # Call Pin Vandaag API
-        service = PinVandaagService()
-        try:
-            result = service.start_transaction(
-                terminal_id=terminal.terminal_id,
-                api_key=terminal.api_key,
-                amount=amount
-            )
-        except requests.RequestException as e:
-            logger.error(f"Pin Vandaag API error: {e}")
-            return JsonResponse({
-                'success': False,
-                'error': 'Payment terminal unavailable'
-            }, status=502)
+        # Check if demo mode
+        if terminal.is_demo:
+            import time
+            transaction_id = f"demo-{int(time.time())}"
+            logger.info(f"Demo mode: generated transaction_id={transaction_id}")
+        else:
+            # Call Pin Vandaag API
+            service = PinVandaagService()
+            try:
+                result = service.start_transaction(
+                    terminal_id=terminal.terminal_id,
+                    api_key=terminal.api_key,
+                    amount=amount
+                )
+                transaction_id = result.get('transactionId')
+            except requests.RequestException as e:
+                logger.error(f"Pin Vandaag API error: {e}")
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Payment terminal unavailable'
+                }, status=502)
 
         # Create Transaction record
         transaction = Transaction.objects.create(
-            transaction_id=result.get('transactionId'),
+            transaction_id=transaction_id,
             terminal_link=terminal,
             amount=amount,
             status='started',
@@ -260,19 +267,44 @@ def get_transaction_status(request):
             }, status=404)
 
         # Call Pin Vandaag API
-        service = PinVandaagService()
-        try:
-            result = service.get_status(
-                terminal_id=terminal.terminal_id,
-                api_key=terminal.api_key,
-                transaction_id=transaction_id
-            )
-        except requests.RequestException as e:
-            logger.error(f"Pin Vandaag API error: {e}")
-            return JsonResponse({
-                'success': False,
-                'error': 'Payment terminal unavailable'
-            }, status=502)
+        # Check if demo mode
+        if terminal.is_demo:
+            # Demo: return success after transaction exists for 3+ seconds
+            try:
+                tx = Transaction.objects.get(transaction_id=transaction_id)
+                elapsed = (timezone.now() - tx.created_at).total_seconds()
+                if elapsed < 3:
+                    return JsonResponse({
+                        'success': True,
+                        'status': 'waiting'
+                    })
+                else:
+                    tx.status = 'success'
+                    tx.save()
+                    return JsonResponse({
+                        'success': True,
+                        'status': 'success'
+                    })
+            except Transaction.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Transaction not found'
+                }, status=404)
+        else:
+            # Call Pin Vandaag API
+            service = PinVandaagService()
+            try:
+                result = service.get_status(
+                    terminal_id=terminal.terminal_id,
+                    api_key=terminal.api_key,
+                    transaction_id=transaction_id
+                )
+            except requests.RequestException as e:
+                logger.error(f"Pin Vandaag API error: {e}")
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Payment terminal unavailable'
+                }, status=502)
 
         # Update Transaction record
         try:

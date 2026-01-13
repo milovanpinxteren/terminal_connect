@@ -12,6 +12,8 @@ class TerminalLinks(models.Model):
     api_key = models.CharField(max_length=255)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    is_demo = models.BooleanField(default=False)
+
 
     class Meta:
         verbose_name_plural = "Terminal Links"
