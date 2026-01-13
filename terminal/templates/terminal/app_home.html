@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terminal Connect</title>
+
+    <!-- Shopify App Bridge -->
+    <meta name="shopify-api-key" content="e76539f3f8d238af271fd1978aab5b82" />
+    <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
+
+    <!-- Polaris Web Components -->
+    <script src="https://cdn.shopify.com/shopifycloud/polaris.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .status-success { background: #d4edda; color: #155724; }
+        .status-failed { background: #f8d7da; color: #721c24; }
+        .status-started { background: #fff3cd; color: #856404; }
+        .status-timeout { background: #e2e3e5; color: #383d41; }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #6b7177;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e1e3e5;
+        }
+        th {
+            font-weight: 600;
+            color: #6b7177;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+        tr:hover {
+            background: #f9fafb;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="loading">
+            <s-spinner size="large"></s-spinner>
+        </div>
+    </div>
+
+    <script>
+        // Wait for App Bridge to be ready
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                await initApp();
+            } catch (error) {
+                console.error('App initialization failed:', error);
+                showError(error.message);
+            }
+        });
+
+        async function initApp() {
+            // Get shop info from Shopify API (satisfies requirement 2.2.1)
+            let shopName = 'Uw winkel';
+            try {
+                const shopData = await fetchShopInfo();
+                shopName = shopData?.data?.shop?.name || shopName;
+            } catch (e) {
+                console.warn('Could not fetch shop info:', e);
+            }
+
+            // Get transactions from Django API
+            let transactions = [];
+            try {
+                const shop = new URLSearchParams(window.location.search).get('shop');
+                if (shop) {
+                    const response = await fetch(`/api/terminal/transactions/?shop=${encodeURIComponent(shop)}`);
+                    const data = await response.json();
+                    if (data.success) {
+                        transactions = data.transactions;
+                    }
+                }
+            } catch (e) {
+                console.warn('Could not fetch transactions:', e);
+            }
+
+            // Render the app
+            renderApp(shopName, transactions);
+        }
+
+        async function fetchShopInfo() {
+            // Use App Bridge direct API access
+            const response = await fetch('shopify:admin/api/2024-01/graphql.json', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    query: `
+                        query {
+                            shop {
+                                name
+                                email
+                                myshopifyDomain
+                            }
+                        }
+                    `
+                })
+            });
+            return await response.json();
+        }
+
+        function renderApp(shopName, transactions) {
+            const app = document.getElementById('app');
+
+            app.innerHTML = `
+                <s-page title="Terminal Connect">
+                    <s-box padding="400">
+                        <s-vertical-stack gap="400">
+
+                            <!-- Welcome Card -->
+                            <s-card>
+                                <s-box padding="400">
+                                    <s-vertical-stack gap="200">
+                                        <s-text variant="headingMd">Welkom, ${escapeHtml(shopName)}</s-text>
+                                        <s-text variant="bodyMd" color="subdued">
+                                            Terminal Connect koppelt uw Shopify POS aan uw Pin Vandaag betaalterminal.
+                                            Configuratie wordt beheerd door de beheerder.
+                                        </s-text>
+                                    </s-vertical-stack>
+                                </s-box>
+                            </s-card>
+
+                            <!-- Transactions Card -->
+                            <s-card>
+                                <s-box padding="400">
+                                    <s-vertical-stack gap="300">
+                                        <s-text variant="headingMd">Recente transacties</s-text>
+                                        ${renderTransactionsTable(transactions)}
+                                    </s-vertical-stack>
+                                </s-box>
+                            </s-card>
+
+                            <!-- Help Card -->
+                            <s-card>
+                                <s-box padding="400">
+                                    <s-vertical-stack gap="200">
+                                        <s-text variant="headingMd">Hulp nodig?</s-text>
+                                        <s-text variant="bodyMd" color="subdued">
+                                            Neem contact op met uw beheerder voor configuratie van terminals
+                                            of bij problemen met betalingen.
+                                        </s-text>
+                                    </s-vertical-stack>
+                                </s-box>
+                            </s-card>
+
+                        </s-vertical-stack>
+                    </s-box>
+                </s-page>
+            `;
+        }
+
+        function renderTransactionsTable(transactions) {
+            if (!transactions || transactions.length === 0) {
+                return `
+                    <div class="empty-state">
+                        <s-text variant="bodyMd" color="subdued">
+                            Nog geen transacties. Transacties verschijnen hier zodra u betalingen
+                            verwerkt via de POS tile.
+                        </s-text>
+                    </div>
+                `;
+            }
+
+            const rows = transactions.map(tx => `
+                <tr>
+                    <td>${escapeHtml(tx.transaction_id || '-')}</td>
+                    <td>${escapeHtml(tx.amount_display)}</td>
+                    <td><span class="status-badge status-${tx.status}">${escapeHtml(tx.status)}</span></td>
+                    <td>${formatDate(tx.created_at)}</td>
+                </tr>
+            `).join('');
+
+            return `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Transactie ID</th>
+                            <th>Bedrag</th>
+                            <th>Status</th>
+                            <th>Datum</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rows}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function formatDate(isoString) {
+            if (!isoString) return '-';
+            const date = new Date(isoString);
+            return date.toLocaleDateString('nl-NL', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function showError(message) {
+            const app = document.getElementById('app');
+            app.innerHTML = `
+                <s-page title="Terminal Connect">
+                    <s-box padding="400">
+                        <s-banner status="critical">
+                            <s-text>Er is een fout opgetreden: ${escapeHtml(message)}</s-text>
+                        </s-banner>
+                    </s-box>
+                </s-page>
+            `;
+        }
+    </script>
+</body>
+</html>
