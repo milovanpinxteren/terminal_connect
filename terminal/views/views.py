@@ -326,22 +326,49 @@ def get_transaction_status(request):
                     'error': 'Payment terminal unavailable'
                 }, status=502)
 
+        # Extract the actual payment status from nested response
+        # Pin Vandaag returns: {'status': 'success', 'transaction': {'status': 'unknown/success/failed', ...}}
+        # The top-level 'status' means "API call succeeded", not payment status
+        payment_status = 'started'
+        error_msg = None
+        receipt = None
+
+        if 'transaction' in result:
+            tx_data = result['transaction']
+            payment_status = tx_data.get('status', 'started')
+            error_msg = tx_data.get('error_msg') or tx_data.get('errorMsg')
+            receipt = tx_data.get('receipt')
+            logger.info(f"Extracted payment status from transaction: {payment_status}")
+        elif 'worldline' in result:
+            wl_data = result['worldline']
+            payment_status = wl_data.get('status', 'started')
+            logger.info(f"Extracted payment status from worldline: {payment_status}")
+        else:
+            # Fallback to old behavior for backwards compatibility
+            payment_status = result.get('status', 'started')
+            error_msg = result.get('errorMsg')
+            receipt = result.get('receipt')
+
+        # Map 'unknown' status to 'started' (still waiting)
+        if payment_status == 'unknown':
+            payment_status = 'started'
+
         # Update Transaction record
         try:
             transaction = Transaction.objects.get(transaction_id=transaction_id)
-            transaction.status = result.get('status', 'started')
-            transaction.error_msg = result.get('errorMsg')
-            transaction.receipt = result.get('receipt')
+            transaction.status = payment_status
+            transaction.error_msg = error_msg
+            transaction.receipt = receipt
             transaction.save()
-            logger.info(f"Transaction updated: {transaction_id} -> {transaction.status}")
+            logger.info(f"Transaction updated: {transaction_id} -> {payment_status}")
         except Transaction.DoesNotExist:
             logger.warning(f"Transaction {transaction_id} not found in database")
 
         return JsonResponse({
             'success': True,
-            'status': result.get('status'),
-            'error_msg': result.get('errorMsg'),
-            'receipt': result.get('receipt')
+            'status': payment_status,
+            'error_msg': error_msg,
+            'receipt': receipt
         }, status=200)
 
     except Exception as e:
