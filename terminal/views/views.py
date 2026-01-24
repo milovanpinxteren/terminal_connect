@@ -164,7 +164,7 @@ def start_transaction(request):
                     api_key=terminal.api_key,
                     amount=amount
                 )
-                transaction_id = result.get('transactionId')
+                transaction_id = result.get('transaction_id')
                 # Log the full response to debug
                 logger.info(f"Pin Vandaag FULL response: {result}")
                 logger.info(f"Response type: {type(result)}")

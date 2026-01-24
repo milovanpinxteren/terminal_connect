@@ -42,7 +42,7 @@ class PinVandaagService:
             response = requests.post(url, headers=headers, data=data, timeout=30)
             response.raise_for_status()
             result = response.json()
-            logger.info(f"Transaction started: {result.get('transactionId')}")
+            logger.info(f"Transaction started: {result.get('transaction_id')}")
             return result
         except requests.RequestException as e:
             logger.error(f"Failed to start transaction: {e}")
