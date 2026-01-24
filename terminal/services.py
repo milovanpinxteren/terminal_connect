@@ -77,7 +77,7 @@ class PinVandaagService:
             response = requests.post(url, headers=headers, data=data, timeout=30)
             response.raise_for_status()
             result = response.json()
-            logger.info(f"Transaction status: {transaction_id} -> {result.get('status')}")
+            logger.info(f"Transaction status FULL response: {result}")
             return result
         except requests.RequestException as e:
             logger.error(f"Failed to get transaction status: {e}")
