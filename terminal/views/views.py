@@ -165,6 +165,26 @@ def start_transaction(request):
                     amount=amount
                 )
                 transaction_id = result.get('transactionId')
+                # Log the full response to debug
+                logger.info(f"Pin Vandaag FULL response: {result}")
+                logger.info(f"Response type: {type(result)}")
+                logger.info(f"Response keys: {result.keys() if isinstance(result, dict) else 'not a dict'}")
+
+                # Also try alternative key names
+                if not transaction_id:
+                    transaction_id = result.get('transaction_id') or result.get('TransactionId') or result.get('id')
+                    if transaction_id:
+                        logger.info(f"Found transaction_id using alternative key: {transaction_id}")
+
+                # Validate we got a transaction ID
+                if not transaction_id:
+                    logger.error(f"Pin Vandaag did not return transactionId. Full response: {result}")
+                    error_msg = result.get('error') or result.get('message') or result.get('errorMsg') or 'Terminal did not return transaction ID'
+                    return JsonResponse({
+                        'success': False,
+                        'error': error_msg
+                    }, status=502)
+
             except requests.RequestException as e:
                 logger.error(f"Pin Vandaag API error: {e}")
                 return JsonResponse({
